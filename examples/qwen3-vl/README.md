@@ -2,6 +2,15 @@
 
 This example shows how to fine-tune [Qwen3-VL-8B-Instruct](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct) using LoRA on the [MaskGroups-HQ dataset](https://huggingface.co/datasets/Shengcao1006/MaskGroups-HQ).
 
+## Two Training Modes
+
+1. **Mask Group Prediction** (`lora-8b.yaml`) - Train to predict mask groups from queries
+2. **Verifier / Quality Gate** (`verifier-lora-8b.yaml`) - Train ACCEPT/REJECT classifier for segmentation QA
+
+---
+
+## Option 1: Mask Group Prediction
+
 ## Quick Start
 
 ### 1. Setup Environment
@@ -100,6 +109,84 @@ python scripts/custom/plot_training_loss.py \
 - `../../scripts/custom/preprocess_maskgroups.py` - Dataset preprocessing
 - `../../scripts/custom/wandb_image_callback.py` - W&B image logging plugin
 - `../../scripts/custom/plot_training_loss.py` - Local loss plotting
+
+---
+
+## Option 2: Verifier Training (ACCEPT/REJECT)
+
+Train a quality gate model that verifies if a mask group matches a query.
+
+### 1. Create Verifier Dataset
+
+This creates overlay images with masks rendered on them, labeled ACCEPT or REJECT:
+
+```bash
+# Install dependencies
+pip install pycocotools scipy
+
+# Create verifier dataset (takes ~15 min for full dataset)
+python scripts/custom/create_verifier_dataset.py \
+    --images-dir ./data/maskgroups-hq/images_resized \
+    --output-dir ./data/verifier-dataset \
+    --num-negatives 4
+
+# This creates:
+# - 1 ACCEPT per sample (correct mask group)
+# - 4 REJECT per sample (2 hard negatives from same image, 2 easy from other images)
+# - Total: ~18,000 samples (3599 × 5)
+```
+
+### 2. Train Verifier
+
+```bash
+PYTHONPATH=. accelerate launch -m axolotl.cli.train examples/qwen3-vl/verifier-lora-8b.yaml
+```
+
+### Verifier Dataset Format
+
+Each sample is an overlay image (original + mask highlighted) with a simple prompt:
+
+```
+System: You are a segmentation QA verifier.
+User: Query: {query}. Does the highlighted mask group match the query? Answer exactly: ACCEPT or REJECT.
+Assistant: ACCEPT  (or REJECT)
+```
+
+### Verifier Config Highlights
+
+```yaml
+# Short responses (just ACCEPT/REJECT)
+sequence_len: 256
+
+# Classification-style training
+num_epochs: 1  # v0: start with 1 epoch
+
+# Track classification metrics
+eval_causal_lm_metrics:
+  - accuracy
+```
+
+### Deployment Usage
+
+```python
+# Given candidate masks from SAM/segmenter:
+# 1. Render overlay image
+# 2. Ask verifier: ACCEPT/REJECT
+# 3. ACCEPT → auto-pass, REJECT → human review
+```
+
+---
+
+## Files
+
+| File | Description |
+|------|-------------|
+| `lora-8b.yaml` | Mask group prediction training |
+| `verifier-lora-8b.yaml` | ACCEPT/REJECT verifier training |
+| `../../scripts/custom/preprocess_maskgroups.py` | Dataset preprocessing |
+| `../../scripts/custom/create_verifier_dataset.py` | Create verifier dataset with overlays |
+| `../../scripts/custom/wandb_image_callback.py` | W&B image logging plugin |
+| `../../scripts/custom/plot_training_loss.py` | Local loss plotting |
 
 ## References
 

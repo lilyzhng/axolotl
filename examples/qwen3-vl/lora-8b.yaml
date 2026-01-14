@@ -55,7 +55,7 @@ plugins:
 # Effective batch size: 64 (micro_batch * grad_accum * num_gpus)
 gradient_accumulation_steps: 16
 micro_batch_size: 4
-num_epochs: 1
+num_epochs: 5
 optimizer: adamw_bnb_8bit
 lr_scheduler: cosine
 learning_rate: 0.0001  # 1e-4 as recommended for LoRA

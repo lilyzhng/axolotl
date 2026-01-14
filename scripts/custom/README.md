@@ -64,6 +64,55 @@ python scripts/custom/plot_training_loss.py \
     --output ./outputs/your-run/training_loss.png
 ```
 
+### 4. `create_verifier_dataset.py`
+Creates a verifier training dataset with ACCEPT/REJECT labels from MaskGroups-HQ.
+
+**What it does:**
+- Creates overlay images with masks highlighted
+- Generates positive (ACCEPT) samples with correct mask groups
+- Generates hard negatives (REJECT) using other semantic objects from the same image
+- Generates easy negatives (REJECT) using masks from different images
+
+**Usage:**
+```bash
+python scripts/custom/create_verifier_dataset.py \
+    --images-dir ./data/maskgroups-hq/images_resized \
+    --output-dir ./data/verifier-dataset \
+    --num-negatives 4 \
+    --hard-negative-ratio 0.5
+```
+
+### 5. `visualize_verifier_dataset.py`
+Creates comparison figures to visualize ACCEPT vs REJECT samples.
+
+**Usage:**
+```bash
+python scripts/custom/visualize_verifier_dataset.py \
+    --dataset-dir ./data/verifier-dataset \
+    --output ./data/verifier-dataset/comparison_figure.png \
+    --num-samples 3
+```
+
+### 6. `analyze_coverage.py`
+Analyzes mask overlay coverage statistics for the verifier dataset.
+
+**Usage:**
+```bash
+# Analyze all samples with detailed output
+python scripts/custom/analyze_coverage.py \
+    --dataset-dir ./data/verifier-dataset
+
+# Analyze first 10 samples, summary only
+python scripts/custom/analyze_coverage.py \
+    --dataset-dir ./data/verifier-dataset \
+    --num-samples 10 \
+    --quiet
+```
+
+**Output:**
+- Per-sample coverage percentages
+- Summary statistics (mean, std, min, max, median) for ACCEPT, REJECT hard, REJECT easy
+
 ## Example Config
 
 See `examples/qwen3-vl/lora-8b.yaml` for a complete config using these scripts to fine-tune Qwen3-VL-8B on MaskGroups-HQ.
@@ -71,6 +120,6 @@ See `examples/qwen3-vl/lora-8b.yaml` for a complete config using these scripts t
 ## Requirements
 
 ```bash
-pip install matplotlib wandb datasets tqdm
+pip install matplotlib wandb datasets tqdm pycocotools scipy
 ```
 

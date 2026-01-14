@@ -382,12 +382,34 @@ class WandbImagePlugin(BasePlugin):
         )
         
         # Pre-populate with trainer's data
-        if hasattr(trainer, 'eval_dataset'):
+        if hasattr(trainer, 'eval_dataset') and trainer.eval_dataset is not None:
             self.callback.eval_dataset = trainer.eval_dataset
-        if hasattr(trainer, 'processing_class'):
+            print(f"[WandbImagePlugin] Found eval_dataset with {len(trainer.eval_dataset)} samples")
+        else:
+            print("[WandbImagePlugin] Warning: No eval_dataset found in trainer")
+            
+        if hasattr(trainer, 'processing_class') and trainer.processing_class is not None:
             self.callback.processor = trainer.processing_class
-        elif hasattr(trainer, 'tokenizer'):
+            print("[WandbImagePlugin] Using processing_class as processor")
+        elif hasattr(trainer, 'tokenizer') and trainer.tokenizer is not None:
             self.callback.processor = trainer.tokenizer
+            print("[WandbImagePlugin] Using tokenizer as processor")
+        else:
+            print("[WandbImagePlugin] Warning: No processor found in trainer")
+        
+        # Initialize sample indices and log initial images now
+        if self.callback.eval_dataset is not None and not self.callback._logged_initial:
+            dataset_size = len(self.callback.eval_dataset)
+            self.callback.sample_indices = random.sample(
+                range(dataset_size), 
+                min(self.callback.num_samples, dataset_size)
+            )
+            print(f"[WandbImagePlugin] Tracking {len(self.callback.sample_indices)} samples for visualization")
+            
+            # Log initial sample images if W&B is initialized
+            if wandb.run is not None:
+                self.callback._log_sample_images()
+                self.callback._logged_initial = True
         
         print("[WandbImagePlugin] Added WandbImageCallback")
         return [self.callback]
