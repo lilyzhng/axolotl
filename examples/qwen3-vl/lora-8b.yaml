@@ -1,0 +1,85 @@
+# Qwen3-VL-8B-Instruct LoRA fine-tuning config
+# For verifier training (ACCEPT/REJECT classification on mask group overlays)
+# Reference: https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct
+# RunPod tutorial: https://docs.runpod.io/tutorials/pods/fine-tune-llm-axolotl
+
+base_model: Qwen/Qwen3-VL-8B-Instruct
+processor_type: AutoProcessor
+
+# Required for vision chat templates with images
+skip_prepare_dataset: true
+remove_unused_columns: false
+sample_packing: false
+
+# Qwen3-VL uses the same chat template format as Qwen2-VL
+chat_template: qwen2_vl
+datasets:
+  # Use preprocessed local JSON with full image paths
+  # Run: python scripts/custom/preprocess_maskgroups.py first
+  # Update the path below to point to your preprocessed dataset
+  - path: ./data/maskgroups-hq/train.json
+    type: chat_template
+    ds_type: json
+
+dataset_prepared_path: last_run_prepared
+val_set_size: 0.1
+output_dir: ./outputs/qwen3-vl-verifier
+
+adapter: lora
+lora_model_dir:
+
+sequence_len: 8192
+pad_to_sequence_len: false
+
+# LoRA config (following plans.md recommendations)
+lora_r: 32
+lora_alpha: 16
+lora_dropout: 0.05
+# Target attention + MLP layers for Qwen3-VL
+lora_target_modules: 'model.language_model.layers.[\d]+.(mlp|cross_attn|self_attn).(up|down|gate|q|k|v|o)_proj'
+
+# Weights & Biases logging for loss curves and image visualization
+wandb_project: qwen3-vl-finetuning
+wandb_entity:  # Your W&B username or team name (optional)
+wandb_watch: gradients  # Options: false, gradients, all
+wandb_name: lora-8b-maskgroups
+wandb_log_model: checkpoint  # Log model checkpoints to W&B
+
+# Custom plugin for image logging during training
+# Logs sample images and model predictions at each eval step
+# To enable: run from repo root (PYTHONPATH is set automatically)
+plugins:
+  - scripts.custom.wandb_image_callback.WandbImagePlugin
+
+# Training config optimized for A100/H100
+# Effective batch size: 64 (micro_batch * grad_accum * num_gpus)
+gradient_accumulation_steps: 16
+micro_batch_size: 4
+num_epochs: 1
+optimizer: adamw_bnb_8bit
+lr_scheduler: cosine
+learning_rate: 0.0001  # 1e-4 as recommended for LoRA
+
+bf16: true
+fp16:
+tf32: true
+
+gradient_checkpointing: true
+logging_steps: 10
+flash_attention: true
+eager_attention:
+
+warmup_ratio: 0.03
+evals_per_epoch: 4
+saves_per_epoch: 2
+weight_decay: 0.0
+
+# Recommended by Qwen3-VL docs for generation
+# These are inference defaults, training will use teacher forcing
+# top_p: 0.8
+# top_k: 20
+# temperature: 0.7
+# repetition_penalty: 1.0
+
+# save_first_step: true  # uncomment to validate checkpoint saving works
+
